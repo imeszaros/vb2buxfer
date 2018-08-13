@@ -1,0 +1,7 @@
+buxfer:
+  username: <user>
+  password: <pass>
+settings:
+  account:
+  tagMappings:
+    "description": "tag"
