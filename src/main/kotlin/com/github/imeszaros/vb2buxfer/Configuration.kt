@@ -44,6 +44,7 @@ class Configuration {
     object Settings : ConfigSpec("settings") {
 
         val account by optional("", description = "Last selected account.")
-        val tagMappings by optional(mapOf<String, String>(), description = "Transaction description -> Tags")
+        val extendedDescriptions by optional(listOf<String>(), description = "Extended descriptions (by matching first line)")
+        val tagMappings by optional(mutableMapOf<String, String>(), description = "Transaction description -> Tags")
     }
 }

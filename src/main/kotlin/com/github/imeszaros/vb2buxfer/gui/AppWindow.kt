@@ -5,13 +5,18 @@ import com.github.imeszaros.buxfer.BuxferResponse
 import com.github.imeszaros.buxfer.Transaction
 import com.github.imeszaros.vb2buxfer.Configuration
 import com.github.imeszaros.vb2buxfer.Configuration.Settings.account
+import com.github.imeszaros.vb2buxfer.Configuration.Settings.extendedDescriptions
 import com.github.imeszaros.vb2buxfer.Configuration.Settings.tagMappings
 import com.github.imeszaros.vb2buxfer.TagMapper
 import com.github.imeszaros.vb2buxfer.TransactionList
 import org.eclipse.swt.SWT
+import org.eclipse.swt.custom.TableEditor
+import org.eclipse.swt.graphics.Point
 import org.eclipse.swt.graphics.RGB
+import org.eclipse.swt.layout.FillLayout
 import org.eclipse.swt.layout.GridLayout
 import org.eclipse.swt.widgets.*
+import java.util.concurrent.TimeUnit
 
 class AppWindow(
         private val buxfer: Buxfer,
@@ -88,6 +93,58 @@ class AppWindow(
                 text = "Result"
                 width = 100
             }
+
+            val editor = TableEditor(this)
+
+            editor.horizontalAlignment = SWT.FILL
+            editor.grabHorizontal = true
+
+            val tagsColumn = 4
+
+            addListener(SWT.MouseDown) { ev ->
+                getItem(Point(ev.x, ev.y))?.also { item ->
+                    if (item.getBounds(tagsColumn).contains(ev.x, ev.y)) {
+                        editor.editor?.dispose()
+
+                        val composite = Composite(table, SWT.NONE)
+                        composite.background = table.background
+                        composite.layout = FillLayout().apply {
+                            marginWidth = 3
+                            marginHeight = 2
+                        }
+
+                        val text = Text(composite, SWT.NONE)
+                        text.text = item.getText(tagsColumn)
+                        text.selectAll()
+                        text.setFocus()
+
+                        text.addListener(SWT.KeyDown) { ev ->
+                            if (ev.character == SWT.ESC) {
+                                editor.editor?.dispose()
+                            }
+                            if (ev.character == SWT.CR) {
+                                val tags = text.text
+
+                                editor.item.setText(tagsColumn, tags)
+                                editor.editor?.dispose()
+
+                                (item.data as TransactionList.TransactionData).tags.apply {
+                                    clear()
+                                    addAll(tags.split(",")
+                                            .map(String::trim)
+                                            .toList())
+                                }
+                            }
+                        }
+
+                        text.addListener(SWT.FocusOut) {
+                            editor.editor?.dispose()
+                        }
+
+                        editor.setEditor(composite, item, tagsColumn)
+                    }
+                }
+            }
         }
 
         Label(this, SWT.NONE).apply {
@@ -154,7 +211,7 @@ class AppWindow(
             try {
                 table.removeAll()
 
-                TransactionList.parse(text, tagMapper).forEach {
+                TransactionList.parse(text, tagMapper, config[extendedDescriptions]).forEach {
                     TableItem(table, SWT.NONE).apply {
                         data = it
                         checked = true
@@ -173,14 +230,16 @@ class AppWindow(
     }
 
     private fun setState(transaction: TransactionList.TransactionData, state: Boolean, message: String? = null) {
+        val statusColumn = 5
+
         table.items.find { it.data === transaction }?.run {
             if (state) {
-                setText(5, "Success")
-                setForeground(5, successColor)
+                setText(statusColumn, "Success")
+                setForeground(statusColumn, successColor)
                 checked = false
             } else {
-                setText(5, message ?: "Failure")
-                setForeground(5, failureColor)
+                setText(statusColumn, message ?: "Failure")
+                setForeground(statusColumn, failureColor)
             }
         }
     }
@@ -195,6 +254,10 @@ class AppWindow(
         ProgressDialog.whileExecutes(gui, shell, "Uploading transactions…") {
             transactions.forEach {
                 try {
+                    TimeUnit.SECONDS.sleep(1L)
+
+                    tagMapper.update(it.description, it.tags.joinToString(", "))
+
                     if (it.amount < 0) {
                         buxfer.addTransaction(Transaction.Expense(
                                 accountId = account.id,
@@ -216,6 +279,8 @@ class AppWindow(
                     shell.display.asyncExec { setState(it, false, e.message) }
                 }
             }
+
+            config.save()
         }
     }
 }

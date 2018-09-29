@@ -16,7 +16,7 @@ class TransactionList(private val data: List<TransactionData>) : Iterable<Transa
             val transactionDate: LocalDate,
             val description: String,
             val amount: Double,
-            val tags: List<String>)
+            val tags: MutableList<String>)
 
     companion object {
 
@@ -27,7 +27,7 @@ class TransactionList(private val data: List<TransactionData>) : Iterable<Transa
             groupingSeparator = '.'
         })
 
-        fun parse(text: String, tagMapper: TagMapper): TransactionList {
+        fun parse(text: String, tagMapper: TagMapper, extendedDescriptions: List<String>): TransactionList {
             val doc = Jsoup.parseBodyFragment(text)
             val table = doc.select("table")[0]
 
@@ -35,7 +35,14 @@ class TransactionList(private val data: List<TransactionData>) : Iterable<Transa
                 tr.select("td").let <Elements, TransactionData> { tds ->
                     val transactionDate = LocalDate.parse(tds[0].textNodes()[0].text(), dateFormat)!!
                     val accountingDate = LocalDate.parse(tds[0].textNodes()[1].text(), dateFormat)!!
-                    val description = tds[1].select("a")[0].textNodes()[1].text()!!
+                    val description = tds[1].select("a")[0].textNodes().let {
+                        val firstLine = it[1].text()!!
+                        if (extendedDescriptions.contains(firstLine) && it.size > 2) {
+                            firstLine + " / " + it[2].text()!!
+                        } else {
+                            firstLine
+                        }
+                    }
                     val amount = tds[2].text().split("\\s".toRegex())[0].let(amountFormat::parse).toDouble()
                     val tags = tagMapper.map(description)
                     TransactionData(accountingDate, transactionDate, description, amount, tags)

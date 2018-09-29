@@ -3,5 +3,8 @@ buxfer:
   password: <pass>
 settings:
   account:
+  extendedDescriptions:
+    - first line of description 1
+    - first line of description 1
   tagMappings:
     "description": "tag"
